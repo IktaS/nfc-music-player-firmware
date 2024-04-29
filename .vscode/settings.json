@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.ts": "typescript",
+        "*.rpy": "renpy",
+        "string": "cpp",
+        "new": "cpp"
+    }
+}
