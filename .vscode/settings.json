@@ -3,6 +3,7 @@
         "*.ts": "typescript",
         "*.rpy": "renpy",
         "string": "cpp",
-        "new": "cpp"
+        "new": "cpp",
+        "system_error": "cpp"
     }
 }

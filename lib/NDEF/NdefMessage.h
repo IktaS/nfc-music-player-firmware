@@ -24,7 +24,6 @@ public:
     void addTextRecord(String text);
     void addTextRecord(String text, String encoding);
     void addUriRecord(String uri);
-    void addHTTPSUriRecord(String uri);
     void addEmptyRecord();
 
     unsigned int getRecordCount();
