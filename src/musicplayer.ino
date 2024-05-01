@@ -240,9 +240,10 @@ void ReadAndPublishFromTag()
             {
                 // The TNF and Type should be used to determine how your application processes the payload
                 // There's no generic processing for the payload, it's returned as a byte[]
-                int payloadLength = record.getPayloadLength();
-                byte payload[payloadLength];
+                int length = record.getPayloadLength();
+                byte payload[length];
                 record.getPayload(payload);
+                payload[length] = '\0';
 
                 // Force the data into a String (might work depending on the content)
                 // Real code should use smarter processing
@@ -255,9 +256,9 @@ void ReadAndPublishFromTag()
                 else
                 {
                     Serial.print("Successfuly published: ");
-                    Serial.println(string.c_str());
+                    Serial.println(string);
                     Serial.print("To: ");
-                    Serial.println(mqttPlayTopic.c_str());
+                    Serial.println(mqttPlayTopic);
                 }
                 return;
             }
