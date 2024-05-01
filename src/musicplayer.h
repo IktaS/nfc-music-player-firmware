@@ -20,18 +20,7 @@ const uint16_t mqtt_port = 1883;
 const char *const mqtt_user = "mosquitto";
 const char *const mqtt_password = "mosquitto-client";
 
-// RC522 Setup
-#define SS_PIN 5
-#define RST_PIN 21
-
-// PN532 Setup
-#define SCK_PIN 35
-#define MOSI_PIN 36
-#define MISO_PIN 19
-
 // Lights and Buzzer Stuffs
 #define PWR_PIN 27
 #define WRT_PIN 26
 #define BZR_PIN 25
-
-#define BZR_TONE 3000

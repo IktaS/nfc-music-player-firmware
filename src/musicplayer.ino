@@ -1,16 +1,18 @@
 #include <musicplayer.h>
 #include <Wire.h>
-#include <SPI.h>
 #include <stdint.h>
 #include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
 #include <PubSubClient.h>
 #include <string>
 
+#include <SPI.h>
 #include <PN532_SPI.h>
 #include <PN532.h>
 #include <NfcAdapter.h>
-PN532_SPI pn532spi(SPI, 10);
-NfcAdapter nfc = NfcAdapter(pn532spi);
+
+SPIClass spi = SPIClass(VSPI);
+PN532_SPI pn532_spi(spi, SS);
+NfcAdapter nfc = NfcAdapter(pn532_spi);
 
 // WiFi Setup
 WiFiManager wifiManager;
@@ -30,17 +32,9 @@ String mqttWriteValueTopic = String(topic_prefix) + "/" + String(device_id) + "/
 #endif
 
 // Buffers
-uint8_t mifareKey[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-uint8_t ndefKey[6] = {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7};
-uint8_t success;                       // Flag to check if there was an error with the PN532
-uint8_t isNDEF;                        // Flag to check if card is NDEF Formatted
-uint8_t uid[] = {0, 0, 0, 0, 0, 0, 0}; // Buffer to store the returned UID
-uint8_t uidLength;                     // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
-
-#define DATA_LENGTH 38
-/* Create another array to read data from all blocks */
-byte PICCDataBufferLen = DATA_LENGTH;
-byte readPICCData[DATA_LENGTH];
+uint8_t success;          // Flag to check if there was an error with the PN532
+uint8_t isAlreadyPresent; // Flag to check if a tag was already present
+byte charBuffer[MQTT_MAX_PACKET_SIZE];
 
 // Buffers for write mode
 #ifdef WRITE_MODE
@@ -91,7 +85,7 @@ void mqttconnect()
             // turn on power light if mqtt connected
             digitalWrite(PWR_PIN, HIGH);
             delay(100);
-            client.publish(mqttPlayTopic.c_str(), willMessageOnline);
+            client.publish(mqttWillTopic.c_str(), willMessageOnline);
 #ifdef WRITE_MODE
             client.subscribe(mqttWriteModeTopic.c_str());
             client.subscribe(mqttWriteValueTopic.c_str());
@@ -164,30 +158,39 @@ void loop()
 
     if (!nfc.tagPresent())
     {
+        isAlreadyPresent = false;
         delay(50);
         return;
     }
+
+    // if we have a card present just ignore it
+    if (isAlreadyPresent)
+    {
+        return;
+    }
+
+    isAlreadyPresent = true;
 
 #ifdef WRITE_MODE
     if (writeMode)
     {
         digitalWrite(WRT_PIN, LOW);
-        tone(BZR_PIN, BZR_TONE);
+        myTone(BZR_PIN);
         /* Call 'WriteURLToTag' function, which will write data to the block */
         WriteURLToTag();
         digitalWrite(WRT_PIN, HIGH);
-        noTone(BZR_PIN);
+        myNoTone(BZR_PIN);
     }
     else
     {
 #endif
 
         digitalWrite(WRT_PIN, HIGH);
-        tone(BZR_PIN, BZR_TONE);
+        myTone(BZR_PIN);
         /* Read data from the same block */
         ReadAndPublishFromTag();
         digitalWrite(WRT_PIN, LOW);
-        noTone(BZR_PIN);
+        myNoTone(BZR_PIN);
 
 #ifdef WRITE_MODE
     }
@@ -225,11 +228,32 @@ void ReadAndPublishFromTag()
             NdefRecord record = message.getRecord(i);
             if (record.getTnf() == TNF_WELL_KNOWN)
             {
+                // The TNF and Type should be used to determine how your application processes the payload
+                // There's no generic processing for the payload, it's returned as a byte[]
                 int payloadLength = record.getPayloadLength();
-                byte payload[payloadLength + 1];
+                byte payload[payloadLength];
                 record.getPayload(payload);
-                payload[payloadLength + 1] = '\0';
-                client.publish(mqttPlayTopic.c_str(), (char *)payload);
+
+                // Force the data into a String (might work depending on the content)
+                // Real code should use smarter processing
+                String string = "";
+                for (int c = 1; c < payloadLength; c++)
+                {
+                    string += (char)payload[c];
+                }
+                success = client.publish(mqttPlayTopic.c_str(), string.c_str());
+                if (!success)
+                {
+                    Serial.println("failed to publish mqtt message");
+                }
+                else
+                {
+                    Serial.print("Successfuly published: ");
+                    Serial.println(string.c_str());
+                    Serial.print("To: ");
+                    Serial.println(mqttPlayTopic.c_str());
+                }
+                return;
             }
         }
     }
@@ -251,4 +275,15 @@ void BlinkLEDFromLow(uint8_t pin, uint8_t final)
     digitalWrite(pin, LOW);
     delay(100);
     digitalWrite(pin, final);
+}
+
+void myTone(int pin)
+{
+    ledcAttachPin(pin, 0);       // pin, channel
+    ledcWriteNote(0, NOTE_C, 6); // channel, frequency, octave
+}
+
+void myNoTone(int pin)
+{
+    ledcDetachPin(pin);
 }
